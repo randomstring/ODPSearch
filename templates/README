@@ -1,0 +1,10 @@
+These files are copied verbatim into the search page result
+output. The header in injected after the http header (text/html) and
+before the search query string display. The copyright message follows
+the <hr> tags with the links to other search engines.
+
+The example-*.tpl files are for the example ODP search.
+
+These files need to be put into the /gh/search/templates/ directory
+and be readable by the search process. (nobody)
+

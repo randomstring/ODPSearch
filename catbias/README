@@ -1,0 +1,40 @@
+These files contain the relative category bias to be used
+for the default, adult, and locale based searches. 
+
+Possitive bias numbers are bad, the number is added to the effective
+category depth of that category and all subcategories. The deeper the
+category the lower the wieght of the overall site and category scores.
+Negative bias numbers promote those categories and all sub-categories
+by increasing the relative scores of those categories.
+
+The default file (biaslist-default.cfg) is the base bias list that is
+always used. It is primarily used to demote notoriously bad spam
+categories.
+
+The adult file (biaslist-adult.cfg) counteracts any anti-bias that may
+be inserted into the default bias list. Changes to the adult bias in
+either must be coordinated. For example if the Adult category bias in
+the default bias list is +10, then the anti-bias in the adult bias list
+should be -10 to cancel it out.
+
+The locale baias lists are named biaslist-locale-<locale>.cfg. Locales
+correspond to the locales passed in by the browser. Locals strings are
+canonicalized to lower case ascii alphabet characters in the format of
+two letter language code appended with an optional underscore and two
+letter contry code.
+
+Some examples:
+	en	= English
+	en_ca	= English, for Canada
+	en_uk	= English, for the United Kingdom
+	fr	= French
+	fr_fr   = French, for France
+	de	= German
+	it	= Italian
+
+The locale files must be placed in the /gh/search/Locale/ directory
+and be readable by the search process. In the case that search is 
+being invoked by httpd, it should be readable by the userid of the httpd
+daemon.
+
+

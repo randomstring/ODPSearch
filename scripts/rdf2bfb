@@ -1,0 +1,371 @@
+#!/usr/bin/perl
+#
+# rdf2bfb - Create the index input files for Iindex
+#
+
+$content_rdf_fn = "content.rdf.u8";
+$keyword_rdf_fn = "terms.rdf.u8";
+
+umask 000;
+
+open(RDF, "<$content_rdf_fn") 
+  or die "ERROR: Can't open Content RDF file. $content_rdf_fn\n";
+
+$more_keywords = 1;
+if (!open(KEYWORD_RDF, "<$keyword_rdf_fn")) { 
+    print "Can't find Keyword RDF file $keyword_rdf_fn, proceeding without it.\n";
+    $more_keywords = 0;
+}
+
+open(LIST, ">site.filelist");
+open(TERM_LIST, ">category.filelist");
+
+open(CAT_BFB,  ">category.bfb");
+open(SITE_BFB, ">site.bfb");
+
+# 
+# Globals for parsing keywords
+#
+$current_kw_cat = "";
+$current_keywords = "";
+
+#
+# Start parsing
+#
+		      
+    &read_category_keywords();
+				
+    $line = <RDF>;
+    chomp($line);
+
+    while ($line) {
+
+	#
+	# aquire next category name
+	#
+	while (! ($line =~ /^<Topic r:id=\"Top\/.+\">/ )) {
+	  if (!($line = <RDF>)) {
+	    print "ERROR: premature end of file, while looking for category.\n";
+	    exit(1);
+	  }
+	  chop($line);
+	}
+
+	$cat = $line;
+	$cat =~ s/^<Topic r:id=\"Top\/(.+)\">/$1/;
+
+	$skip = 0;
+	if (($cat =~ /^Test/) ||
+	    ($cat =~ /^Private/)) {
+	  $skip = 1;
+	}
+	
+	if (! $skip) {
+	  # print "CATEGORY = $cat \n";
+
+	  # create category search keyword files
+	  $keywords = $cat;
+	  # only add the last category name to the keyword list
+	  $keywords =~ s/.*\/(.+)$/$1/;
+	  $keywords =~ s/_/ /g;
+	  $keywords =~ s/\// /g;
+	  $keywords =~ s/\0//g;
+	  
+	  # check for spaces in the category title
+	  if ( $keywords =~ / / ){
+	    $space_compressed = $keywords;
+	    $space_compressed =~ s/ //g;
+	    $keywords .= " $space_compressed";
+	  }
+	  
+	  # exclude single character cat names
+	  if ((length $keywords) > 1) {
+	    # add this to the list of categoires to index
+	    print TERM_LIST "$cat/terms\n";
+	    
+	    # build the keyword list
+	    #open(KEYWORDS,">$cat/terms");
+	    
+	    # print KEYWORDS "$keywords\n";
+	    print CAT_BFB  "$keywords";
+	    
+	    # Add the editor defined search terms
+	    $terms = &get_next_category_keywords($cat);
+
+	    if ($terms) {
+
+	        # print "$cat -> $terms\n";
+
+		# add terms to the category's BFB
+		print CAT_BFB " $terms";
+	    }
+	    
+	    print CAT_BFB  "\n\0";
+	  }
+	}
+
+	#
+	# aquire start of links
+	#
+	if (!($line = <RDF>)) {
+	  print "All done!\n";
+	  print "CATEGORY = $cat \n";
+	  print "line = [$line]\n";
+	  exit(0);
+	}
+	chop($line);
+
+	$newfilename=1;
+	$coolfilename=1;
+
+	while ( !($line =~ /^<ExternalPage about=.+/ ) &&
+	        !($line =~ /^<Topic r:id=.+>/ )) {
+
+  	    if (!( $line = <RDF> )) {
+	        print "All done! \n";
+		print "CATEGORY = $cat \n";
+		print "line = [$line]\n";
+		exit(0);
+	    }
+	    chop($line);
+	}
+
+	while (!($line =~ /^<Topic r:id=.+>/ )) {
+
+	  if ($line =~ /^<ExternalPage about=".+"/ ) { 
+
+	    $url = $line;
+	    $url =~ s/^<ExternalPage about="(.+)">/$1/;
+	    
+	    $title = <RDF>;
+	    chop($title);
+	    $title =~ s/  <d:Title>(.+)<\/d:Title>/$1/;
+	    
+	    $desc = <RDF>;
+	    chop($desc);
+	    $desc =~ s/  <d:Description>(.+)<\/d:Description>/$1/;
+
+	    $line = <RDF>;
+	    chop($line);
+	    $cool = 0;
+	    if ( $line =~ /  <priority>1<\/priority>/ ) {
+  	        $cool = 1;
+	    }
+
+
+	    if (! $skip) {
+
+	      # Strip out any null characters (they are useds as record dividers)
+	      $url   =~ s/\0//g;
+	      $title =~ s/\0//g;
+	      $desc  =~ s/\0//g;
+
+	      # 
+	      # add data to BFB
+	      #
+	      print SITE_BFB  "u:${url}\nt:${title}\nd:${desc}\n\0";
+
+	      if ($cool) {
+		$fn = "$cat/c$coolfilename";	
+		$coolfilename++;
+	      }
+	      else {
+		$fn = "$cat/.$newfilename";
+		$newfilename++;
+	      }
+
+	      #
+	      # Add filename to list
+	      #
+	      print LIST "$fn\n";
+	    }
+
+	  }
+
+	  if (!( $line = <RDF> )) {
+	      print "All done! \n";
+	      print "Last category = $cat \n";
+	      print "Last line = [$line]\n";
+	      exit(0);
+	  }
+	  chop($line);
+
+	}
+	
+      }
+
+close(LIST);
+close(CATS);
+close(TERM_LIST);
+close(CAT_BFB);
+close(SITE_BFB);
+
+
+
+sub read_category_keywords() {
+
+     my($l);
+
+     while ($more_keywords) {
+         # scan for next category
+
+         if (!($l = <KEYWORD_RDF>)) {
+	     print "Done with keyword RDF.\n";
+	     $more_keywords = 0;
+	 }
+	 chop($l);
+
+         while ($l && ($current_kw_cat eq "") && $more_keywords) {
+
+	     #
+	     # Find start of next category with keywords
+	     #
+	     while ($more_keywords && !($l =~ /<Topic r:id="Top\/.+">/ )) {
+
+	         if (!($l = <KEYWORD_RDF>)) {
+		     print "Done with keyword RDF.\n";
+		     $more_keywords = 0;
+		 }
+		 chop($l);
+	     }
+
+	     if ($more_keywords) {
+	         $current_kw_cat = $l;
+	         $current_kw_cat =~ s/<Topic r:id="Top\/(.+)">/$1/;
+		 $current_keywords = "";
+
+		 if (!($l = <KEYWORD_RDF>)) {
+		     print "Done with keyword RDF.\n";
+		     $more_keywords = 0;
+		 }
+		 chop($l);
+	     }
+	     
+	     #
+	     # parse out keywords
+	     #
+	     while ($more_keywords && ($l =~ /  <d:term>.+<\/d:term>/ )) {
+
+	         $l =~ s/^  <d:term>(.+)<\/d:term>.*/$1/;
+
+		 if ($l) {
+		   if ($current_keywords) {
+		     $current_keywords .= " ";
+		   }
+		   $current_keywords .= $l;
+		 }
+
+		 if (!($l = <KEYWORD_RDF>)) {
+		   $more_keywords = 0;
+		 }
+		 chop($l);
+	     }
+
+	     if (!($l = <KEYWORD_RDF>)) {
+	       $more_keywords = 0;
+	     }
+	     chop($l);
+	 }
+
+
+	 #
+	 # save category and keyword
+	 #
+	 if (($current_kw_cat ne "") && ($current_keywords ne "")) {
+	     @kw{$current_kw_cat} = $current_keywords;
+             $current_kw_cat = "";
+	     $current_keywords = "";
+	 }
+       }
+
+}
+
+sub get_next_category_keywords($) {
+
+    my($current_cat) = @_;
+
+    if (@kw{$current_cat}) {
+        return (@kw{$current_cat});
+    }
+    else {
+        return "";
+    }
+}
+
+
+sub get_next_category_keywords2($) {
+    
+     my($current_cat) = @_;
+     my($l);
+
+     if (($current_kw_cat eq "") && ($more_keywords)) {
+         # scan for next category
+
+         if (!($l = <KEYWORD_RDF>)) {
+	     print "Done with keyword RDF.\n";
+	     $more_keywords = 0;
+	 }
+	 chop($l);
+
+         while ($l && ($current_kw_cat eq "") && $more_keywords) {
+
+	     #
+	     # Find start of next category with keywords
+	     #
+	     while ($more_keywords && !($l =~ /<Topic r:id="Top\/.+">/ )) {
+
+	         if (!($l = <KEYWORD_RDF>)) {
+		     print "Done with keyword RDF.\n";
+		     $more_keywords = 0;
+		 }
+		 chop($l);
+	     }
+
+	     if ($more_keywords) {
+	         $current_kw_cat = $l;
+	         $current_kw_cat =~ s/<Topic r:id="Top\/(.+)">/$1/;
+		 $current_keywords = "";
+
+		 if (!($l = <KEYWORD_RDF>)) {
+		     print "Done with keyword RDF.\n";
+		     $more_keywords = 0;
+		 }
+		 chop($l);
+	     }
+	     
+	     #
+	     # parse out keywords
+	     #
+	     while ($more_keywords && ($l =~ /  <d:term>.+<\/d:term>/ )) {
+
+	         $l =~ s/^  <d:term>(.+)<\/d:term>.*/$1/;
+
+		 if ($l) {
+		   if ($current_keywords) {
+		     $current_keywords .= " ";
+		   }
+		   $current_keywords .= $l;
+		 }
+
+		 if (!($l = <KEYWORD_RDF>)) {
+		   $more_keywords = 0;
+		 }
+		 chop($l);
+	     }
+
+	     if (!($l = <KEYWORD_RDF>)) {
+	       $more_keywords = 0;
+	     }
+	     chop($l);
+	 }
+     }
+
+     if ($current_kw_cat eq $current_cat) {
+         $current_kw_cat = "";
+         return $current_keywords;
+     }
+
+     return "";
+   
+}
+

@@ -1,0 +1,8 @@
+#
+# This is the list of all the document types that are supported.
+# This file is parsed to create the dtconf.c and dtconf.h files.
+#
+simple	 	# Parse all the text in a document.
+colondoc	# Colon-tag documents (<tag>: <indexed content> )
+keyword		# Like colondoc, but only indexing the keywords (with colon-tag = 'k')
+site		# Like colondoc, but scores partially based on record length

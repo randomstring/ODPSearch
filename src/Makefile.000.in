@@ -1,0 +1,82 @@
+
+CC=g++
+CFLAGS=-O2 -DUNIX -Wall
+INSTALL=/usr/local/bin
+BIN_DIR=../bin
+DOCTYPE_DIR=../doctype
+DOCLIB=
+
+LIB = libIsearch.a
+AR = ar
+ARFLAGS = r
+LDFLAGS=
+EXTRA_LIBS=
+RANLIB=ranlib
+RANLIB_TEST = [ -f /usr/bin/ranlib -o -f /bin/ranlib ]
+
+OBJ= defs.o vlist.o strlist.o dtreg.o idb.o \
+	stringx.o common.o iresult.o irset.o record.o \
+	mdt.o mdtrec.o index.o tokengen.o multiterm.o \
+	hashtable.o mdthashtable.o utf8.o heapsort.o \
+     	###DTOBJ###
+
+
+H= gdt.h vlist.h strlist.h dtreg.h idb.h \
+        stringx.h common.h result.h rset.h iresult.h \
+        irset.h record.h mdt.h mdtrec.h \
+        index.h defs.h idbobj.h tokengen.h \
+        hashtable.h mdthashtable.h heapsort.h \
+	###DTHXX###
+
+INC= -I$(DOCTYPE_DIR) -I../src
+
+RM= rm -f
+
+all: $(OBJ) Iindex.o Iutil.o Iindex  Iutil
+
+Isearch: Isearch.o Isearch
+
+%.o: $(H) %.c
+	$(CC) $(CFLAGS) $(INC) -o $@ -c $*.c
+
+###DTMAKE###
+
+$(BIN_DIR)/$(LIB):$(OBJ)
+#	$(AR) $(ARFLAGS) $(BIN_DIR)/$(LIB) $(OBJ)
+	$(AR) $(ARFLAGS) $@ $?
+	`if $(RANLIB_TEST) ; \
+	then $(RANLIB) $(BIN_DIR)/$(LIB) ; \
+	else true ; fi`
+
+Iindex:$(BIN_DIR)/Iindex
+	@true
+
+$(BIN_DIR)/Iindex:$(BIN_DIR)/$(LIB) Iindex.o
+	$(RM) $@
+	$(CC) $(LDFLAGS) -o $@ -static Iindex.o -L$(BIN_DIR) \
+			-lIsearch -lm -lc $(DOCLIB) $(EXTRA_LIBS)
+
+Isearch:$(BIN_DIR)/Isearch
+	@true
+
+$(BIN_DIR)/Isearch:$(BIN_DIR)/$(LIB) Isearch.o
+	$(RM) $@
+	$(CC) $(LDFLAGS) -o $@ -static Isearch.o -L$(BIN_DIR) \
+			-lIsearch -lm -lc $(DOCLIB) $(EXTRA_LIBS)
+
+Iutil:$(BIN_DIR)/Iutil
+	@true
+
+$(BIN_DIR)/Iutil:$(BIN_DIR)/$(LIB) Iutil.o
+	$(RM) $@
+	$(CC) $(LDFLAGS) -o $@ -static Iutil.o -L$(BIN_DIR) \
+			-lIsearch -lm -lc $(DOCLIB) $(EXTRA_LIBS)
+
+clean:
+	$(RM) *.o *~ core $(BIN_DIR)/Iindex \
+		$(BIN_DIR)/Isearch $(BIN_DIR)/Iutil $(BIN_DIR)/$(LIB)
+
+build:
+	make -i realclean
+	make all
+
